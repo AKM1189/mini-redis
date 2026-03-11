@@ -1,0 +1,3 @@
+set name akm
+set name akm
+get name
