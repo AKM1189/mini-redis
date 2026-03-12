@@ -1,14 +1,16 @@
 import net from "node:net";
 import { tokenize } from "./utils.js";
 import { Store } from "./store.js";
+import { PubSub } from "./pubsub.js";
 
 const writeCommands = new Set(["SET", "DEL", "EXPIRE", "INCR", "DECR"]);
 
 export const handleCommand = (
-  socket: Pick<net.Socket, "write">,
+  socket: net.Socket,
   store: Store,
   cmd: string,
   args: string[],
+  pubsub: PubSub,
 ) => {
   switch (cmd) {
     case "SET": {
@@ -127,6 +129,79 @@ export const handleCommand = (
         socket.write(`${(error as Error).message}\n`);
         return;
       }
+    }
+
+    case "SUBSCRIBE": {
+      if (args.length < 1) {
+        socket.write("ERR wrong number of arguments for SUBSCRIBE\n");
+        return;
+      }
+      try {
+        for (const channel of args) {
+          const count = pubsub.subscribe(socket, channel);
+          socket.write(`subscribed channel: ${channel} | count: ${count}\n`);
+        }
+        return;
+      } catch (error) {
+        socket.write(`${(error as Error).message}\n`);
+        return;
+      }
+    }
+
+    case "UNSUBSCRIBE": {
+      if (args.length < 1) {
+        socket.write("ERR wrong number of arguments for UNSUBSCRIBE\n");
+        return;
+      }
+
+      for (const channel of args) {
+        const count = pubsub.unsubscribe(socket, channel);
+        socket.write(`unsubscribed ${channel} ${count}\n`);
+      }
+
+      return;
+    }
+
+    case "PSUBSCRIBE": {
+      if (args.length < 1) {
+        socket.write("ERR wrong number of arguments for PSUBSCRIBE\n");
+        return;
+      }
+
+      for (const pattern of args) {
+        const count = pubsub.psubscribe(socket, pattern);
+        socket.write(`psubscribed ${pattern} ${count}\n`);
+      }
+
+      return;
+    }
+
+    case "PUBLISH": {
+      if (args.length < 2) {
+        socket.write("ERR wrong number of arguments for PUBLISH\n");
+        return;
+      }
+
+      const channel = args[0];
+      const message = args.slice(1).join(" ");
+      const delivered = pubsub.publish(channel, message);
+
+      socket.write(`${delivered}\n`);
+      return;
+    }
+
+    case "PUNSUBSCRIBE": {
+      if (args.length < 1) {
+        socket.write("ERR wrong number of arguments for PUNSUBSCRIBE\n");
+        return;
+      }
+
+      for (const pattern of args) {
+        const count = pubsub.punsubscribe(socket, pattern);
+        socket.write(`punsubscribed ${pattern} ${count}\n`);
+      }
+
+      return;
     }
 
     case "": {

@@ -4,8 +4,10 @@ import { Store } from "./store.js";
 import { handleCommand, isWriteCommand } from "./commandHandler.js";
 import { Persistence } from "./persistance.js";
 import { tokenize } from "./utils.js";
+import { PubSub } from "./pubsub.js";
 
 const store = new Store();
+const pubsub = new PubSub();
 // const persistance = new Persistence(path.resolve(process.cwd(), "src", "command.txt"));
 // const noopSocket = { write: (_message: string) => true };
 
@@ -33,7 +35,7 @@ const server = net.createServer((socket) => {
 
     try {
       const cmd = command?.toUpperCase() ?? "";
-      const result = handleCommand(socket, store, cmd, args);
+      const result = handleCommand(socket, store, cmd, args, pubsub);
 
       //   if (result !== undefined && isWriteCommand(cmd)) {
       //     persistance.append(line);
@@ -51,11 +53,13 @@ const server = net.createServer((socket) => {
 
   socket.on("error", (err) => {
     console.error("Socket error:", err.message);
+    pubsub.cleanupSocket(socket);
   });
 
   socket.on("close", () => {
     console.log("\nDisconnected from server");
-    process.exit(0);
+    pubsub.cleanupSocket(socket);
+    // process.exit(0);
   });
 });
 
